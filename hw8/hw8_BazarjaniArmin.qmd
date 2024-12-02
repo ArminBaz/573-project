@@ -1,0 +1,195 @@
+---
+title: "Homework 8"
+author: "Armin Bazarjani"
+format: pdf
+editor: visual
+---
+
+```{r}
+#| message: false
+library(here)
+library(readxl)  # for reading excel files
+library(modelsummary)  # for summarizing data
+library(cmdstanr)  # use two cores
+library(posterior)
+library(bayesplot)
+library(tidyverse)
+library(Lahman)
+```
+
+# Research Question
+> How does a player's batting ability change over their career?
+
+# Variables
+- `playerID`: Player ID Code
+- `yearID`: Year
+- `stint`: player's stint (order of appearances within a season)
+- `teamID`: Team; a factor
+- `H`: Number of hits in a season
+- `AB`: Number of at-bats in a season
+
+## Data Import
+```{r}
+data("Batting")
+
+
+# Data Processing Function
+prepare_batting_data <- function(batting_data) {
+  batting_processed <- batting_data %>%
+    # Filter for sufficient at-bats (minimum 100 to be meaningful)
+    filter(AB >= 100) %>%
+    # Calculate batting average
+    mutate(BA = H / AB) %>%
+    # Group by player and calculate career year
+    group_by(playerID) %>%
+    arrange(yearID) %>%
+    mutate(
+      career_year = row_number(),
+      # Only keep players with at least 3 seasons
+      career_length = n()
+    ) %>%
+    filter(career_length >= 3) %>%
+    ungroup()
+  
+  return(batting_processed)
+}
+
+processed_data <- prepare_batting_data(Batting)
+
+# Prepare data for a single player (Derek Jeter)
+player_data <- processed_data %>%
+  filter(playerID == "jeterde01")
+```
+
+## Variable Summary
+```{r}
+#| label: tbl-summ-var
+#| tbl-cap: Descriptive statistics of batting average by career year
+library(modelsummary)
+
+datasummary(
+  BA ~ N + Mean + SD + Min + Max,
+  data = player_data,
+  output = "markdown"
+)
+```
+
+# Model
+Model:
+$$
+\begin{aligned}
+H_i & \sim \text{Binomial}(AB_i, \theta_i) \\
+\theta_i = \theta_{\text{base}} + \text{learning_rate} \times (Y_i - 1)
+\end{aligned}
+$$
+
+Prior:
+$$
+\begin{aligned}
+\theta_{\text{base}} & \sim \text{Beta}(80, 240) \\
+\text{learning_rate} & \sim N(0, 0.02) 
+\end{aligned}
+$$
+
+## Analysis
+I used 4 chains, each with 4,000 iterations (first 2,000 as warm-ups).
+```{r}
+#| include: false
+# Load the Stan model
+mod <- cmdstan_model(("/Users/abizzle/Desktop/Classes/Fall-2024/Psyc-573/Homework/hw8/stan_code/batting_model.stan"))
+
+# Form the data list for Stan
+stan_dat <- list(
+    N = nrow(player_data),
+    AB = player_data$AB,
+    H = player_data$H,
+    Year = player_data$career_year
+)
+
+# Run the Stan model
+fit <- mod$sample(
+    data = stan_dat,
+    seed = 1234,  # for reproducibility
+    chains = 4,
+    parallel_chains = 4,
+    iter_warmup = 2000,
+    iter_sampling = 2000
+)
+```
+
+# Results
+
+As shown in the rank histogram in @fig-rank-hist-fit below, the chains mixed well.
+
+```{r}
+#| label: fig-rank-hist-fit
+#| fig-cap: Rank histogram of the posterior distributions of model parameters.
+as_draws(fit) |>
+    mcmc_rank_hist(pars = c("theta_base", "learning_rate"))
+```
+
+@tbl-summ-fit shows the posterior distributions of $\theta_{base}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
+
+```{r}
+#| label: tbl-summ-fit
+#| tbl-cap: Posterior summary of the model parameters.
+summ_fit <- fit$draws() |>
+    subset_draws(variable = c("theta_base", "learning_rate", "predicted_ba[1]", "predicted_ba[5]", "predicted_ba[10]")) |>
+    rename_variables(
+        "Base BA" = theta_base,
+        "Learning Rate" = learning_rate,
+        "Year 1 BA" = `predicted_ba[1]`,
+        "Year 5 BA" = `predicted_ba[5]`,
+        "Year 10 BA" = `predicted_ba[10]`
+    ) |>
+    summarise_draws()
+knitr::kable(summ_fit, digits = 3)
+```
+
+@fig-career-trajectory shows the model's estimates of the player's (Derek Jeter) career batting trajectory
+
+```{r}
+#| label: fig-career-trajectory
+#| fig-cap: Career batting average trajectory with 90% credible intervals
+
+#| label: fig-career-trajectory
+#| fig-cap: Career batting average trajectory with 90% credible intervals
+
+# Extract posterior predictions and create proper data frame
+draws <- fit$draws("predicted_ba")
+pred_df <- data.frame(
+  year = 1:18,  # Explicitly use 18 years
+  mean = apply(draws, 3, mean),
+  lower = apply(draws, 3, function(x) quantile(x, 0.05)),
+  upper = apply(draws, 3, function(x) quantile(x, 0.95))
+)
+
+# Plot
+ggplot() +
+    # Add shaded credible interval
+    geom_ribbon(data = pred_df,
+                aes(x = year, ymin = lower, ymax = upper),
+                fill = "lightblue", alpha = 0.3) +
+    # Add mean prediction line
+    geom_line(data = pred_df,
+              aes(x = year, y = mean),
+              color = "blue") +
+    # Add actual observed batting averages
+    geom_point(data = player_data,
+               aes(x = career_year, y = BA)) +
+    # Labels and theme
+    labs(x = "Career Year",
+         y = "Batting Average",
+         title = "Career Batting Average Trajectory") +
+    # Set y-axis limits based on the data
+    scale_y_continuous(limits = c(0.25, 0.36), 
+                      breaks = seq(0.25, 0.36, 0.02)) +
+    theme_minimal()
+```
+
+# Future Plans
+After doing this initial analysis there are a few things I think that I would like to do:
+1. I could try using a non-linear learning rate between seasons.
+2. Try non-linear models for modeling career batting averages
+3. Add covariates, things like age, position, ballpark, etc.
+4. I would like to try a hierarchical model.
