@@ -47,21 +47,21 @@ Table 1: Descriptive statistics of batting average by career year
 Model:
 
 ![\begin{aligned}
-H_i & \sim \text{Binomial}(AB_i, \theta_i) \\
-\theta_i = \theta\_{\text{base}} + \text{learning_rate} \times (Y_i - 1)
-\end{aligned}](https://latex.codecogs.com/svg.latex?%5Cbegin%7Baligned%7D%0AH_i%20%26%20%5Csim%20%5Ctext%7BBinomial%7D%28AB_i%2C%20%5Ctheta_i%29%20%5C%5C%0A%5Ctheta_i%20%3D%20%5Ctheta_%7B%5Ctext%7Bbase%7D%7D%20%2B%20%5Ctext%7Blearning_rate%7D%20%5Ctimes%20%28Y_i%20-%201%29%0A%5Cend%7Baligned%7D "\begin{aligned}
-H_i & \sim \text{Binomial}(AB_i, \theta_i) \\
-\theta_i = \theta_{\text{base}} + \text{learning_rate} \times (Y_i - 1)
+  H_i & \sim \text{Binomial}(AB_i, \theta_i) \\
+  \theta_i = \theta\_{\text{base}} + \text{learning_rate} \times (Y_i - 1)
+\end{aligned}](https://latex.codecogs.com/svg.latex?%5Cbegin%7Baligned%7D%0A%20%20H_i%20%26%20%5Csim%20%5Ctext%7BBinomial%7D%28AB_i%2C%20%5Ctheta_i%29%20%5C%5C%0A%20%20%5Ctheta_i%20%3D%20%5Ctheta_%7B%5Ctext%7Bbase%7D%7D%20%2B%20%5Ctext%7Blearning_rate%7D%20%5Ctimes%20%28Y_i%20-%201%29%0A%5Cend%7Baligned%7D "\begin{aligned}
+  H_i & \sim \text{Binomial}(AB_i, \theta_i) \\
+  \theta_i = \theta_{\text{base}} + \text{learning_rate} \times (Y_i - 1)
 \end{aligned}")
 
 Prior:
 
 ![\begin{aligned}
-\theta\_{\text{base}} & \sim \text{Beta}(80, 240) \\
-\text{learning_rate} & \sim N(0, 0.02) 
-\end{aligned}](https://latex.codecogs.com/svg.latex?%5Cbegin%7Baligned%7D%0A%5Ctheta_%7B%5Ctext%7Bbase%7D%7D%20%26%20%5Csim%20%5Ctext%7BBeta%7D%2880%2C%20240%29%20%5C%5C%0A%5Ctext%7Blearning_rate%7D%20%26%20%5Csim%20N%280%2C%200.02%29%20%0A%5Cend%7Baligned%7D "\begin{aligned}
-\theta_{\text{base}} & \sim \text{Beta}(80, 240) \\
-\text{learning_rate} & \sim N(0, 0.02) 
+  \theta\_{\text{base}} & \sim \text{Beta}(80, 240) \\
+  \text{learning_rate} & \sim N(0, 0.02) 
+\end{aligned}](https://latex.codecogs.com/svg.latex?%5Cbegin%7Baligned%7D%0A%20%20%5Ctheta_%7B%5Ctext%7Bbase%7D%7D%20%26%20%5Csim%20%5Ctext%7BBeta%7D%2880%2C%20240%29%20%5C%5C%0A%20%20%5Ctext%7Blearning_rate%7D%20%26%20%5Csim%20N%280%2C%200.02%29%20%0A%5Cend%7Baligned%7D "\begin{aligned}
+  \theta_{\text{base}} & \sim \text{Beta}(80, 240) \\
+  \text{learning_rate} & \sim N(0, 0.02) 
 \end{aligned}")
 
 ## Analysis
