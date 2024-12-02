@@ -1,8 +1,12 @@
 ---
 title: "Homework 8"
 author: "Armin Bazarjani"
-format: pdf
-editor: visual
+date: "`r Sys.Date()`"
+echo: false
+format:
+  gfm:
+    toc: true
+    html-math-method: webtex
 ---
 
 ```{r}
