@@ -79,19 +79,20 @@ datasummary(
 ```
 
 # Model
+
 Model:
 $$
 \begin{aligned}
-H_i & \sim \text{Binomial}(AB_i, \theta_i) \\
-\theta_i = \theta_{\text{base}} + \text{learning_rate} \times (Y_i - 1)
+  H_i & \sim \operatorname{Binomial}(AB_i, \theta_i) \\
+  \theta_i = & \theta_{\text{base}} + \text{learning\_rate} \times (Y_i - 1)
 \end{aligned}
 $$
 
 Prior:
 $$
 \begin{aligned}
-\theta_{\text{base}} & \sim \text{Beta}(80, 240) \\
-\text{learning_rate} & \sim N(0, 0.02) 
+  \theta_{\text{base}} & \sim \text{Beta}(80, 240) \\
+  \text{learning\_rate} & \sim N(0, 0.02) 
 \end{aligned}
 $$
 
@@ -132,7 +133,7 @@ as_draws(fit) |>
     mcmc_rank_hist(pars = c("theta_base", "learning_rate"))
 ```
 
-@tbl-summ-fit shows the posterior distributions of $\theta_{base}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
+@tbl-summ-fit shows the posterior distributions of $\theta_{\text{base}}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
 
 ```{r}
 #| label: tbl-summ-fit
