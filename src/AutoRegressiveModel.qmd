@@ -111,7 +111,39 @@ p_ar <- as_draws(fit_ar) |>
     labs(title = "Rank Histogram - Autoregressive Model")
 
 # Save the plot
-ggsave("../figures/autoregressive_model_rank_histogram.pdf", p_ar, width = 8, height = 6)
+# ggsave("../figures/autoregressive_model_rank_histogram.pdf", p_ar, width = 8, height = 6)
+```
+
+```{r}
+trace_plot <- mcmc_trace(as_draws_df(fit_ar$draws()), 
+                        pars = c("theta_base", "learning_rate", "rho"))
+trace_plot
+```
+```{r}
+# ggsave("../figures/armodel_trace_plot.pdf", trace_plot, width = 10, height = 6)
+```
+
+
+```{r}
+# Get observed data
+y <- player_data$BA
+
+# Get predictions and subset to match observed years
+yrep <- as.matrix(as_draws_df(fit_ar$draws("predicted_ba")))
+yrep <- yrep[, 1:length(y)]
+
+# Plot
+p <- ppc_dens_overlay(y, yrep) +
+  theme_minimal() +
+  labs(title = "Posterior Predictive Check - Batting Averages",
+       x = "Batting Average",
+       y = "Density")
+```
+```{r}
+# p
+```
+```{r}
+# ggsave("../figures/pp_check_armodel_1.pdf", p, width = 8, height = 6)
 ```
 
 @tbl-summ-fit shows the posterior distributions of $\theta_{\text{base}}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
@@ -119,11 +151,12 @@ ggsave("../figures/autoregressive_model_rank_histogram.pdf", p_ar, width = 8, he
 ```{r}
 #| label: tbl-summ-fit
 #| tbl-cap: Posterior summary of the model parameters.
-summ_fit <- fit$draws() |>
-    subset_draws(variable = c("theta_base", "learning_rate", "predicted_ba[1]", "predicted_ba[5]", "predicted_ba[10]")) |>
+summ_fit <- fit_ar$draws() |>
+    subset_draws(variable = c("theta_base", "learning_rate", "rho", "predicted_ba[1]", "predicted_ba[5]", "predicted_ba[10]")) |>
     rename_variables(
         "Base BA" = theta_base,
         "Learning Rate" = learning_rate,
+        "Rho" = rho,
         "Year 1 BA" = `predicted_ba[1]`,
         "Year 5 BA" = `predicted_ba[5]`,
         "Year 10 BA" = `predicted_ba[10]`
@@ -131,6 +164,9 @@ summ_fit <- fit$draws() |>
     summarise_draws()
 knitr::kable(summ_fit, digits = 3)
 ```
+
+
+
 
 @fig-career-trajectory shows the model's estimates of the player's (Derek Jeter) career batting trajectory
 

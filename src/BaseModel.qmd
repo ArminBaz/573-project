@@ -121,6 +121,28 @@ fit <- mod$sample(
 )
 ```
 
+```{r}
+# Get observed data
+y <- player_data$BA
+
+# Get predictions and subset to match observed years
+yrep <- as.matrix(as_draws_df(fit$draws("predicted_ba")))
+yrep <- yrep[, 1:length(y)]
+
+# Plot
+p <- ppc_dens_overlay(y, yrep) +
+  theme_minimal() +
+  labs(title = "Posterior Predictive Check - Batting Averages",
+       x = "Batting Average",
+       y = "Density")
+```
+```{r}
+# p
+```
+```{r}
+# ggsave("../figures/pp_check_basemodel_1.pdf", p, width = 8, height = 6)
+```
+
 # Results
 
 As shown in the rank histogram in @fig-rank-hist-fit below, the chains mixed well.
@@ -138,8 +160,20 @@ p <- as_draws(fit) |>
     labs(title = "Rank Histogram - Base Model")
 
 # Save the plot
-ggsave("../figures/basemodel_rank_histogram.pdf", p, width = 8, height = 6)
+# ggsave("../figures/basemodel_rank_histogram.pdf", p, width = 8, height = 6)
 ```
+```{r}
+trace_plot <- mcmc_trace(as_draws_df(fit$draws()), 
+                        pars = c("theta_base", "learning_rate"))
+trace_plot
+```
+
+```{r}
+# ggsave("../figures/basemodel_trace_plot.pdf", trace_plot, width = 10, height = 6)
+```
+
+
+
 
 @tbl-summ-fit shows the posterior distributions of $\theta_{\text{base}}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
 

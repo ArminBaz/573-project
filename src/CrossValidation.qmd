@@ -1,0 +1,116 @@
+---
+title: "Model Comparison"
+author: "Armin Bazarjani"
+format: html
+editor: visual
+---
+```{r}
+#| message: false
+library(here)
+library(readxl)  # for reading excel files
+library(modelsummary)  # for summarizing data
+library(cmdstanr)  # use two cores
+library(posterior)
+library(bayesplot)
+library(tidyverse)
+library(Lahman)
+library(latex2exp)
+library(ggplot2)
+```
+
+## Data Import
+```{r}
+data("Batting")
+
+
+# Data Processing Function
+prepare_batting_data <- function(batting_data) {
+  batting_processed <- batting_data %>%
+    # Filter for sufficient at-bats (minimum 100 to be meaningful)
+    filter(AB >= 100) %>%
+    # Calculate batting average
+    mutate(BA = H / AB) %>%
+    # Group by player and calculate career year
+    group_by(playerID) %>%
+    arrange(yearID) %>%
+    mutate(
+      career_year = row_number(),
+      # Only keep players with at least 3 seasons
+      career_length = n()
+    ) %>%
+    filter(career_length >= 3) %>%
+    ungroup()
+  
+  return(batting_processed)
+}
+
+processed_data <- prepare_batting_data(Batting)
+
+# Prepare data for a single player (Derek Jeter)
+player_data <- processed_data %>%
+  filter(playerID == "jeterde01")
+```
+
+## Fit Models
+```{r}
+#| include: false
+mod_ar <- cmdstan_model("stan_code/batting_model_ar.stan")
+mod_base <- cmdstan_model("stan_code/batting_model.stan")
+```
+```{r}
+#| include: false
+# Form the data list for Stan
+stan_dat <- list(
+    N = nrow(player_data),
+    AB = player_data$AB,
+    H = player_data$H,
+    Year = player_data$career_year
+)
+fit_base <- mod_base$sample(
+    data = stan_dat,
+    seed = 1234,  # for reproducibility
+    chains = 4,
+    parallel_chains = 4,
+    iter_warmup = 2000,
+    iter_sampling = 2000
+)
+fit_ar <- mod_ar$sample(
+    data = stan_dat,
+    seed = 1234,  # for reproducibility
+    chains = 4,
+    parallel_chains = 4,
+    iter_warmup = 2000,
+    iter_sampling = 2000
+)
+```
+
+```{r}
+# Extract log likelihood using draws() method
+log_lik_base <- fit_base$draws("log_lik")
+log_lik_ar <- fit_ar$draws("log_lik")
+
+# Calculate LOOIC using relative_eff for more accurate estimates
+r_eff_base <- loo::relative_eff(exp(log_lik_base))
+r_eff_ar <- loo::relative_eff(exp(log_lik_ar))
+
+# Compute LOO for each model
+loo_base <- loo::loo(log_lik_base, r_eff = r_eff_base)
+loo_ar <- loo::loo(log_lik_ar, r_eff = r_eff_ar)
+
+# Compare the models
+comparison <- loo::loo_compare(loo_base, loo_ar)
+print(comparison)
+```
+```{r}
+# Calculate LOOIC
+loo_base <- fit_base$loo()
+loo_ar <- fit_ar$loo()
+
+# Compare models
+comparison <- loo::loo_compare(loo_base, loo_ar)
+
+# Print comparison
+print(comparison)
+```
+
+

@@ -1,17 +1,16 @@
+// Autoregression model
 data {
   int<lower=0> N;        // number of seasons
   array[N] int<lower=0> AB;    // at bats per season
   array[N] int<lower=0> H;     // hits per season
   array[N] int<lower=0> Year;  // career year
 }
-
 parameters {
   real<lower=0,upper=1> theta_base;    // base batting average
   real learning_rate;                   // yearly improvement/decline rate
   real<lower=0,upper=1> rho;           // autocorrelation parameter
   vector[N] eps;                       // random effects for AR process
 }
-
 transformed parameters {
   vector<lower=0,upper=1>[N] theta;  // year-specific batting average
   
@@ -24,7 +23,6 @@ transformed parameters {
     theta[i] = inv_logit(mu + rho * eps[i-1] + eps[i]);
   }
 }
-
 model {
   // Priors
   theta_base ~ beta(80, 240);      // centers around .250 batting average
@@ -37,9 +35,9 @@ model {
     H[i] ~ binomial(AB[i], theta[i]);
   }
 }
-
 generated quantities {
   vector[N] predicted_ba;
+  vector[N] log_lik;  // Added for LOOIC
   
   // Generate predictions
   predicted_ba[1] = inv_logit(logit(0.25) + eps[1]);
@@ -47,5 +45,10 @@ generated quantities {
   for (i in 2:N) {
     real mu = logit(theta_base) + learning_rate * (Year[i] - 1);
     predicted_ba[i] = inv_logit(mu + rho * eps[i-1] + eps[i]);
+  }
+  
+  // Calculate log likelihood for each observation
+  for (i in 1:N) {
+    log_lik[i] = binomial_lpmf(H[i] | AB[i], theta[i]);
   }
 }
