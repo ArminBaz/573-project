@@ -1,5 +1,5 @@
 ---
-title: "Homework 8"
+title: "Auto Regressive Model"
 author: "Armin Bazarjani"
 date: "`r Sys.Date()`"
 echo: false
@@ -19,17 +19,6 @@ library(Lahman)
 library(latex2exp)
 library(ggplot2)
 ```
-
-# Research Question
-> How does a player's batting ability change over their career?
-
-# Variables
-- `playerID`: Player ID Code
-- `yearID`: Year
-- `stint`: player's stint (order of appearances within a season)
-- `teamID`: Team; a factor
-- `H`: Number of hits in a season
-- `AB`: Number of at-bats in a season
 
 ## Data Import
 ```{r}
@@ -77,30 +66,12 @@ datasummary(
 )
 ```
 
-# Model
-
-Model:
-$$
-\begin{aligned}
-  H_i & \sim \operatorname{Binomial}(AB_i, \theta_i) \\
-  \theta_i = & \theta_{\text{base}} + \text{learning\_rate} \times (Y_i - 1)
-\end{aligned}
-$$
-
-Prior:
-$$
-\begin{aligned}
-  \theta_{\text{base}} & \sim \text{Beta}(80, 240) \\
-  \text{learning\_rate} & \sim N(0, 0.02) 
-\end{aligned}
-$$
 
 ## Analysis
-I used 4 chains, each with 4,000 iterations (first 2,000 as warm-ups).
 ```{r}
 #| include: false
 # Load the Stan model
-mod <- cmdstan_model(("/Users/abizzle/Desktop/Classes/Fall-2024/Psyc-573/Homework/hw8/stan_code/batting_model.stan"))
+mod_ar <- cmdstan_model("stan_code/batting_model_ar.stan")
 
 # Form the data list for Stan
 stan_dat <- list(
@@ -111,7 +82,7 @@ stan_dat <- list(
 )
 
 # Run the Stan model
-fit <- mod$sample(
+fit_ar <- mod_ar$sample(
     data = stan_dat,
     seed = 1234,  # for reproducibility
     chains = 4,
@@ -128,18 +99,19 @@ As shown in the rank histogram in @fig-rank-hist-fit below, the chains mixed wel
 ```{r}
 #| label: fig-rank-hist-fit
 #| fig-cap: Rank histogram of the posterior distributions of model parameters.
-as_draws(fit) |>
-    mcmc_rank_hist(pars = c("theta_base", "learning_rate"))
+as_draws(fit_ar) |>
+    mcmc_rank_hist(pars = c("theta_base", "learning_rate", "rho"))
 ```
+
 ```{r}
 # Then use the correct parameter names
-p <- as_draws(fit) |>
-    mcmc_rank_hist(pars = c("theta_base", "learning_rate")) +
+p_ar <- as_draws(fit_ar) |>
+    mcmc_rank_hist(pars = c("theta_base", "learning_rate", "rho")) +
     theme_bw() +
-    labs(title = "Rank Histogram")
+    labs(title = "Rank Histogram - Autoregressive Model")
 
 # Save the plot
-ggsave("../figures/base_model_rank_histogram.pdf", p, width = 8, height = 6)
+ggsave("../figures/autoregressive_model_rank_histogram.pdf", p_ar, width = 8, height = 6)
 ```
 
 @tbl-summ-fit shows the posterior distributions of $\theta_{\text{base}}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
@@ -163,69 +135,35 @@ knitr::kable(summ_fit, digits = 3)
 @fig-career-trajectory shows the model's estimates of the player's (Derek Jeter) career batting trajectory
 
 ```{r}
-#| label: fig-career-trajectory
-#| fig-cap: Career batting average trajectory with 90% credible intervals
-
-#| label: fig-career-trajectory
-#| fig-cap: Career batting average trajectory with 90% credible intervals
-
-# Extract posterior predictions and create proper data frame
-draws <- fit$draws("predicted_ba")
-pred_df <- data.frame(
-  year = 1:18,  # Explicitly use 18 years
-  mean = apply(draws, 3, mean),
-  lower = apply(draws, 3, function(x) quantile(x, 0.05)),
-  upper = apply(draws, 3, function(x) quantile(x, 0.95))
+# Create trajectory plot
+draws_ar <- fit_ar$draws("predicted_ba")
+pred_df_ar <- data.frame(
+  year = 1:18,
+  mean = apply(draws_ar, 3, mean),
+  lower = apply(draws_ar, 3, function(x) quantile(x, 0.05)),
+  upper = apply(draws_ar, 3, function(x) quantile(x, 0.95))
 )
 
 # Plot
-ggplot() +
-    # Add shaded credible interval
-    geom_ribbon(data = pred_df,
+p_traj_ar <- ggplot() +
+    geom_ribbon(data = pred_df_ar,
                 aes(x = year, ymin = lower, ymax = upper),
                 fill = "lightblue", alpha = 0.3) +
-    # Add mean prediction line
-    geom_line(data = pred_df,
+    geom_line(data = pred_df_ar,
               aes(x = year, y = mean),
               color = "blue") +
-    # Add actual observed batting averages
     geom_point(data = player_data,
                aes(x = career_year, y = BA)) +
-    # Labels and theme
     labs(x = "Career Year",
          y = "Batting Average",
-         title = "Career Batting Average Trajectory") +
-    # Set y-axis limits based on the data
+         title = "Career Batting Average Trajectory (AR Model)") +
     scale_y_continuous(limits = c(0.25, 0.36), 
                       breaks = seq(0.25, 0.36, 0.02)) +
     theme_minimal()
 ```
-
 ```{r}
-# Store the plot
-p <- ggplot() +
-    geom_ribbon(data = pred_df,
-                aes(x = year, ymin = lower, ymax = upper),
-                fill = "lightblue", alpha = 0.3) +
-    geom_line(data = pred_df,
-              aes(x = year, y = mean),
-              color = "blue") +
-    geom_point(data = player_data,
-               aes(x = career_year, y = BA)) +
-    labs(x = "Career Year",
-         y = "Batting Average",
-         title = "Career Batting Average Trajectory") +
-    scale_y_continuous(limits = c(0.25, 0.36), 
-                      breaks = seq(0.25, 0.36, 0.02)) +
-    theme_minimal()
-
-# Save the plot
-ggsave("../figures/jeter_base_model_1.pdf", p, width = 8, height = 6)
+p_traj_ar
 ```
-
-# Future Plans
-After doing this initial analysis there are a few things I think that I would like to do:
-1. I could try using a non-linear learning rate between seasons.
-2. Try non-linear models for modeling career batting averages
-3. Add covariates, things like age, position, ballpark, etc.
-4. I would like to try a hierarchical model.
+```{r}
+ggsave("../figures/jeter_ar_model_1.pdf", p_traj_ar, width = 8, height = 6)
+```

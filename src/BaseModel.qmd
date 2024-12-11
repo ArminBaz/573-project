@@ -1,5 +1,5 @@
 ---
-title: "Homework 8"
+title: "Base Model"
 author: "Armin Bazarjani"
 date: "`r Sys.Date()`"
 echo: false
@@ -130,16 +130,15 @@ As shown in the rank histogram in @fig-rank-hist-fit below, the chains mixed wel
 #| fig-cap: Rank histogram of the posterior distributions of model parameters.
 as_draws(fit) |>
     mcmc_rank_hist(pars = c("theta_base", "learning_rate"))
-```
-```{r}
-# Then use the correct parameter names
+
+# Create the plot
 p <- as_draws(fit) |>
     mcmc_rank_hist(pars = c("theta_base", "learning_rate")) +
     theme_bw() +
-    labs(title = "Rank Histogram")
+    labs(title = "Rank Histogram - Base Model")
 
 # Save the plot
-ggsave("../figures/base_model_rank_histogram.pdf", p, width = 8, height = 6)
+ggsave("../figures/basemodel_rank_histogram.pdf", p, width = 8, height = 6)
 ```
 
 @tbl-summ-fit shows the posterior distributions of $\theta_{\text{base}}$ (base batting average), learning_rate (yearly change), and predicted batting averages for selected career years.
@@ -194,13 +193,12 @@ ggplot() +
     # Labels and theme
     labs(x = "Career Year",
          y = "Batting Average",
-         title = "Career Batting Average Trajectory") +
+         title = "Career Batting Average Trajectory (Base Model)") +
     # Set y-axis limits based on the data
     scale_y_continuous(limits = c(0.25, 0.36), 
                       breaks = seq(0.25, 0.36, 0.02)) +
     theme_minimal()
 ```
-
 ```{r}
 # Store the plot
 p <- ggplot() +
@@ -222,6 +220,7 @@ p <- ggplot() +
 # Save the plot
 ggsave("../figures/jeter_base_model_1.pdf", p, width = 8, height = 6)
 ```
+
 
 # Future Plans
 After doing this initial analysis there are a few things I think that I would like to do:

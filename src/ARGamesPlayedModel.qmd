@@ -1,0 +1,203 @@
+---
+title: "Auto Regressive Games Played"
+author: "Armin Bazarjani"
+date: "`r Sys.Date()`"
+echo: false
+---
+
+```{r}
+#| message: false
+library(here)
+library(readxl)  # for reading excel files
+library(modelsummary)  # for summarizing data
+library(cmdstanr)  # use two cores
+library(posterior)
+library(bayesplot)
+library(tidyverse)
+library(Lahman)
+library(latex2exp)
+library(ggplot2)
+```
+
+## Data Import
+```{r}
+data("Batting")
+
+
+# Modify data preparation to include normalized games
+processed_data <- Batting %>%
+  filter(AB >= 100) %>%
+  mutate(
+    BA = H / AB,
+    # Normalize games played to have mean 0 and sd 1
+    G_normalized = scale(G)[,1]
+  ) %>%
+  group_by(playerID) %>%
+  arrange(yearID) %>%
+  mutate(
+    career_year = row_number(),
+    career_length = n()
+  ) %>%
+  filter(career_length >= 3) %>%
+  ungroup()
+
+# Filter for Derek Jeter
+player_data <- processed_data %>%
+  filter(playerID == "jeterde01")
+```
+
+
+## Analysis
+I used 4 chains, each with 4,000 iterations (first 2,000 as warm-ups).
+```{r}
+#| include: false
+# Load the Stan model
+mod <- cmdstan_model("stan_code/ar_gamesplayed_model.stan")
+
+# Update Stan data list
+stan_dat <- list(
+    N = nrow(player_data),
+    AB = player_data$AB,
+    H = player_data$H,
+    Year = player_data$career_year,
+    G = player_data$G_normalized
+)
+
+# Fit the model
+fit <- mod$sample(
+    data = stan_dat,
+    seed = 1234,
+    chains = 4,
+    parallel_chains = 4,
+    iter_warmup = 2000,
+    iter_sampling = 2000
+)
+```
+
+# Results
+```{r}
+# 1. Extract draws and convert to matrix format
+draws_df <- as_draws_df(fit$draws())
+
+# 2. Convergence diagnostics
+print("Checking convergence diagnostics...")
+rhat <- fit$summary()$rhat
+ess_bulk <- fit$summary()$ess_bulk
+ess_tail <- fit$summary()$ess_tail
+
+diagnostics <- data.frame(
+  parameter = fit$summary()$variable,
+  rhat = rhat,
+  ess_bulk = ess_bulk,
+  ess_tail = ess_tail
+)
+```
+
+```{r}
+# 3. Parameter estimates for key components
+params <- fit$summary(
+  variables = c("theta_base", "learning_rate", "rho", "games_effect", "games_effect_quad")
+) %>%
+  select(variable, mean, q5, q95)
+
+# 4. Create effects plot data
+# Sequence of normalized games for prediction
+games_seq <- seq(min(player_data$G_normalized), 
+                max(player_data$G_normalized), 
+                length.out = 100)
+
+# Extract relevant parameters
+games_effect_mean <- mean(draws_df$games_effect)
+games_quad_mean <- mean(draws_df$games_effect_quad)
+
+# Calculate games effect
+games_effect_data <- tibble(
+  games_normalized = games_seq,
+  effect = games_effect_mean * games_seq + games_quad_mean * games_seq^2,
+  actual_games = games_seq * sd(player_data$G) + mean(player_data$G)
+)
+```
+
+```{r}
+# 5. Create visualization plots
+# Trace plots for key parameters
+trace_plot <- mcmc_trace(draws_df, 
+                        pars = c("theta_base", "learning_rate", "rho", 
+                               "games_effect", "games_effect_quad"))
+
+# Career trajectory plot
+trajectory_data <- tibble(
+  Year = 1:nrow(player_data),
+  BA_mean = colMeans(as.matrix(draws_df[, grep("predicted_ba\\[", colnames(draws_df))])),
+  BA_lower = apply(as.matrix(draws_df[, grep("predicted_ba\\[", colnames(draws_df))]), 2, 
+                  quantile, probs = 0.05),
+  BA_upper = apply(as.matrix(draws_df[, grep("predicted_ba\\[", colnames(draws_df))]), 2, 
+                  quantile, probs = 0.95)
+)
+
+career_plot <- ggplot() +
+  geom_ribbon(data = trajectory_data,
+              aes(x = Year, ymin = BA_lower, ymax = BA_upper),
+              alpha = 0.3, fill = "lightblue") +
+  geom_line(data = trajectory_data,
+            aes(x = Year, y = BA_mean),
+            color = "blue") +
+  geom_point(data = player_data,
+             aes(x = career_year, y = BA)) +
+  labs(x = "Career Year",
+       y = "Batting Average",
+       title = "Career Batting Average Trajectory (AR Model)") +
+  theme_minimal()
+
+# Games effect plot
+games_plot <- ggplot(games_effect_data, aes(x = actual_games)) +
+  geom_line(aes(y = effect)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(x = "Games Played",
+       y = "Effect on Batting Average (logit scale)",
+       title = "Impact of Games Played on Performance") +
+  theme_minimal()
+```
+
+```{r}
+cat("\nModel Diagnostics Summary:\n")
+print(diagnostics %>% 
+      filter(rhat > 1.01 | ess_bulk < 400 | ess_tail < 400))
+
+cat("\nGames Played Effect:\n")
+print(games_effect_data %>% 
+      filter(row_number() %in% c(1, n()/2, n())) %>%
+      select(actual_games, effect))
+```
+
+```{r}
+params
+```
+
+
+```{r}
+trace_plot
+```
+```{r}
+ggsave("../figures/ar_model_games_played_trace.pdf", trace_plot, width = 8, height = 5)
+```
+```{r}
+career_plot
+```
+```{r}
+ggsave("../figures/ar_model_career_traj.pdf", career_plot, width=8, height=6)
+```
+```{r}
+games_plot
+```
+```{r}
+ggsave("../figures/games_played_traj.pdf", games_plot, width=8, height = 6)
+```
+
+
+
+
+
+
+
+
